@@ -10,13 +10,17 @@ import tensorflow as tf
 import os, json, subprocess
 from optparse import OptionParser
 
+
 from scipy.misc import imread, imresize
-from PIL import Image, ImageDraw
+#from PIL import Image, ImageDraw
 
 from train import build_forward
 from utils.annolist import AnnotationLib as al
 from utils.train_utils import add_rectangles, rescale_boxes
 
+
+# define map scale for diam calculation
+SCALE = 0.01 # km/pix, output from USGS ISIS
 
 def initialize(weights_path, hypes_path, options=None):
     """Initialize prediction process.
@@ -95,7 +99,7 @@ def prepare_options(hypes_path='hypes.json', options=None):
         options (dict): The command line options to set before start predictions.
     Returns (dict):
         The model hyperparameters dictionary.
-    """draw.ellipse((20, 180, 180, 20), fill = 'blue', outline ='blue')
+    """
 
     with open(hypes_path, 'r') as f:
         H = json.load(f)
@@ -129,13 +133,47 @@ def save_results(image_path, anno):
         Nothing.
     """
 
-    # draw
-    new_img = Image.open(image_path)
-    d = ImageDraw.Draw(new_img)
+    import cv2 as cv
+    # draw - old pil
+    # new_img = Image.open(image_path)
+    # d = ImageDraw.Draw(new_img)
+
+    # draw - new opencv
+    new_img = imread(image_path)
+
+    # open diameters file for writing
+    diamfile = open('/media/chris/data1/cda/cda/tensorbox/data/cda/ctx_output/' + 'result-' + os.path.basename(image_path) + '.txt','w')
+
     rects = anno['rects'] if type(anno) is dict else anno.rects
     for r in rects:
         if r.score > 0.8:
             # draw circles
+            centre = (int(round(r.left()+(r.right()-r.left())/2)), int(round(r.bottom()+(r.top()-r.bottom())/2)))
+            print centre;
+            print 'r.left ', r.left()
+            print 'r.right ', r.right()
+            print 'r.top ', r.top()
+            print 'r.bottom ', r.bottom()
+            # radius is the average of box height and width, halved
+            radius = int(round(((r.right()-r.left())/2 + (r.bottom()-r.top())/2)/2))
+            print 'radius = ', radius
+
+            cv.circle(new_img,
+                      centre,
+                      radius,
+                      (0, 0, 255), 2, 8, 0)
+
+            cv.line(new_img, (centre[0]-3, centre[1]), (centre[0]+3, centre[1]),
+                    (0, 0, 255), 2, 8, 0)
+
+            cv.line(new_img, (centre[0], centre[1]-3), (centre[0], centre[1]+3),
+                    (0, 0, 255), 2, 8, 0)
+
+            # find diameter in m
+            diam = (((r.right()-r.left())/2 + (r.bottom()-r.top())/2)/2) * SCALE
+
+            # write diameter to file
+            diamfile.write(str(diam) + '\n')
 
             # draw thick rectangles
             # cor = (r.left(), r.top(), r.right(), r.bottom())
@@ -150,7 +188,8 @@ def save_results(image_path, anno):
     #fpath = os.path.join(os.path.dirname(image_path), 'result-' + os.path.basename(image_path) + '.png')
     fpath = os.path.join('/media/chris/data1/cda/cda/tensorbox/data/cda/ctx_output/', 'result-' + os.path.basename(image_path) + '.png')
 
-    new_img.save(fpath)
+    # new_img.save(fpath)
+    cv.imwrite(fpath, new_img)
     subprocess.call(['chmod', '777', fpath])
 
     #fpath = os.path.join(os.path.dirname(image_path), 'result-' + os.path.basename(image_path) + '.json')
