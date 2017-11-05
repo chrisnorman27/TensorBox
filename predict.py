@@ -161,7 +161,7 @@ def save_results(image_path, anno):
             cv.circle(new_img,
                       centre,
                       radius,
-                      (0, 0, 255), 2, 8, 0)
+                      (0, 0, 255), -2, 8, 0)
 
             cv.line(new_img, (centre[0]-3, centre[1]), (centre[0]+3, centre[1]),
                     (0, 0, 255), 2, 8, 0)
